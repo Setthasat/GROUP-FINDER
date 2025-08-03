@@ -9,6 +9,7 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const multer_1 = __importDefault(require("multer"));
 const auth_1 = require("./api/auth");
+const post_1 = require("./api/post");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 // const PORT = process.env.PORT;
@@ -16,7 +17,6 @@ const PORT = process.env.PORT || 8888;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.use('/uploads', express_1.default.static('uploads'));
-const userINST = new auth_1.UserAPI();
 if (process.env.DB_URL) {
     try {
         mongoose_1.default.connect(process.env.DB_URL);
@@ -45,10 +45,20 @@ const upload = (0, multer_1.default)({
         }
     }
 });
+const userINST = new auth_1.UserAPI();
+const postINST = new post_1.postAPI();
 //AUTH 
-// ??? .bind = point a data in class ??? 
-app.post('/api/user/register', upload.fields([{ name: "profileImage", maxCount: 1 }, { name: "backgroundImage", maxCount: 1 }]), userINST.register.bind(userINST));
+app.put('/api/user/update-image', upload.fields([{ name: "profileImage", maxCount: 1 }, { name: "backgroundImage", maxCount: 1 }]), userINST.updateImage);
+app.post('/api/user/register', upload.fields([{ name: "profileImage", maxCount: 1 }, { name: "backgroundImage", maxCount: 1 }]), userINST.register);
 app.get('/api/user/getAllUsers', userINST.getAllUsers);
+app.get('/api/user/login', userINST.login);
+//POST
+app.get('/api/post/getAllPosts', postINST.getAllPosts);
+app.post('/api/post/getPost/:postID', postINST.getPostById);
+app.post('/api/post/create/post', postINST.createPost);
+app.delete('/api/post/delete/post/:postID', postINST.deletePost);
+app.post('/api/post/join/post', postINST.joinParty);
+app.post('/api/post/leave/post', postINST.leaveParty);
 app.get('/', (req, res) => {
     res.send('Hello, world!');
 });

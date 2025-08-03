@@ -13,10 +13,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserAPI = void 0;
-const user_1 = require("../models/user");
+const user_model_1 = require("../models/user.model");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const uuid_1 = require("uuid");
 const auth_utils_1 = require("../utils/auth.utils");
+//register 
+//login 
+//image upload
+//update bio 
+//update username
+//delete user
+//get user / users
 class UserAPI {
     register(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -35,14 +42,14 @@ class UserAPI {
                 baseResponseInst.setValue(400, "Invalid input", null);
                 return res.status(400).json(baseResponseInst.buildResponse());
             }
-            const existingUser = yield user_1.User.findOne({ email });
+            const existingUser = yield user_model_1.User.findOne({ email });
             if (existingUser) {
                 baseResponseInst.setValue(400, "Email already registered", null);
                 return res.status(400).json(baseResponseInst.buildResponse());
             }
             try {
                 const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
-                const newUser = yield user_1.User.create({
+                const newUser = yield user_model_1.User.create({
                     userID: (0, uuid_1.v4)(),
                     email,
                     username,
@@ -71,7 +78,7 @@ class UserAPI {
                 const responseData = baseResponseInst.buildResponse();
                 return res.status(400).json(responseData);
             }
-            const user = yield user_1.User.findOne({ email });
+            const user = yield user_model_1.User.findOne({ email });
             if (!user) {
                 baseResponseInst.setValue(400, "User not found", null);
                 const responseData = baseResponseInst.buildResponse();
@@ -96,7 +103,7 @@ class UserAPI {
         return __awaiter(this, void 0, void 0, function* () {
             const baseResponseInst = new BaseResponse();
             try {
-                const users = yield user_1.User.find({}, {
+                const users = yield user_model_1.User.find({}, {
                     password: 0,
                     verificationToken: 0
                 });
@@ -123,9 +130,9 @@ class UserAPI {
                 return res.status(400).json(baseResponseInst.buildResponse());
             }
             try {
-                const user = yield user_1.User.findOne({ userID }, {
+                // no get password
+                const user = yield user_model_1.User.findOne({ userID }, {
                     password: 0,
-                    verificationToken: 0
                 });
                 if (!user) {
                     baseResponseInst.setValue(404, "User not found", null);
@@ -136,6 +143,35 @@ class UserAPI {
             }
             catch (error) {
                 console.error("Error :", error);
+                baseResponseInst.setValue(500, "Internal Server Error", null);
+                return res.status(500).json(baseResponseInst.buildResponse());
+            }
+        });
+    }
+    updateImage(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
+            const baseResponseInst = new BaseResponse();
+            const { userID } = req.body;
+            const files = req.files;
+            const profileImage = (_a = files === null || files === void 0 ? void 0 : files.profileImage) === null || _a === void 0 ? void 0 : _a[0];
+            const backgroundImage = (_b = files === null || files === void 0 ? void 0 : files.backgroundImage) === null || _b === void 0 ? void 0 : _b[0];
+            try {
+                const user = yield user_model_1.User.findOne({ userID });
+                if (!user) {
+                    baseResponseInst.setValue(404, "User not found", null);
+                    return res.status(404).json(baseResponseInst.buildResponse());
+                }
+                if (profileImage)
+                    user.profileImageURL = profileImage.path;
+                if (backgroundImage)
+                    user.backgroundImageURL = backgroundImage.path;
+                yield user.save();
+                baseResponseInst.setValue(200, "Images updated successfully", user);
+                return res.status(200).json(baseResponseInst.buildResponse());
+            }
+            catch (error) {
+                console.error("Image update error:", error);
                 baseResponseInst.setValue(500, "Internal Server Error", null);
                 return res.status(500).json(baseResponseInst.buildResponse());
             }

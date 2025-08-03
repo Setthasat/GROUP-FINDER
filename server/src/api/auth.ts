@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
-import { User } from "../models/user";
+import { User } from "../models/user.model";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { isValidEmail, isValidString } from "../utils/auth.utils";
-import multer from "multer";
-import path from "path";
 
 interface RegisterRequestBody {
     email: string;
@@ -24,149 +22,177 @@ interface RegisterRequestBody {
 //delete user
 //get user / users
 
-
-
-type RegisterRequest = Request<{}, {}, RegisterRequestBody>;
-
-
 export class UserAPI {
 
-  public async register(req: Request, res: Response) {
-    const baseResponseInst = new BaseResponse();
-    const { email, username, password, bio } = req.body;
+    public async register(req: Request, res: Response) {
+        const baseResponseInst = new BaseResponse();
+        const { email, username, password, bio } = req.body;
 
-    console.log( email, username, password, bio )
-  
-    const files : any = req.files 
-    const profileImage = files?.profileImage?.[0];
-    const backgroundImage = files?.backgroundImage?.[0];
-  
-    if (!profileImage || !backgroundImage) {
-      baseResponseInst.setValue(400, "Missing profile or background image", null);
-      return res.status(400).json(baseResponseInst.buildResponse());
+        console.log(email, username, password, bio);
+
+        const files: any = req.files;
+        const profileImage = files?.profileImage?.[0];
+        const backgroundImage = files?.backgroundImage?.[0];
+
+        if (!profileImage || !backgroundImage) {
+            baseResponseInst.setValue(400, "Missing profile or background image", null);
+            return res.status(400).json(baseResponseInst.buildResponse());
+        }
+
+        if (!isValidEmail(email, 1, 100) || !isValidString(username, 1, 100) || !isValidString(password, 1, 100)) {
+            baseResponseInst.setValue(400, "Invalid input", null);
+            return res.status(400).json(baseResponseInst.buildResponse());
+        }
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            baseResponseInst.setValue(400, "Email already registered", null);
+            return res.status(400).json(baseResponseInst.buildResponse());
+        }
+
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            const newUser = await User.create({
+                userID: uuidv4(),
+                email,
+                username,
+                password: hashedPassword,
+                bio,
+                profileImageURL: profileImage.path,
+                backgroundImageURL: backgroundImage.path,
+                inbox: [],
+            });
+
+            baseResponseInst.setValue(201, "User registered successfully", newUser);
+            return res.status(201).json(baseResponseInst.buildResponse());
+
+        } catch (error) {
+            console.error("Register error:", error);
+            baseResponseInst.setValue(500, "Internal server error", null);
+            return res.status(500).json(baseResponseInst.buildResponse());
+        }
     }
-  
-    if (!isValidEmail(email, 1, 100) || !isValidString(username, 1, 100) || !isValidString(password, 1, 100)) {
-      baseResponseInst.setValue(400, "Invalid input", null);
-      return res.status(400).json(baseResponseInst.buildResponse());
-  }
-  
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      baseResponseInst.setValue(400, "Email already registered", null);
-      return res.status(400).json(baseResponseInst.buildResponse());
-    }
-  
-    try {
-      const hashedPassword = await bcrypt.hash(password, 10);
-  
-      const newUser = await User.create({
-        userID: uuidv4(),
-        email,
-        username,
-        password: hashedPassword,
-        bio,
-        profileImageURL: profileImage.path,
-        backgroundImageURL: backgroundImage.path,
-        inbox: [],
-      });
-  
-      baseResponseInst.setValue(201, "User registered successfully", newUser);
-      return res.status(201).json(baseResponseInst.buildResponse());
-  
-    } catch (error) {
-      console.error("Register error:", error);
-      baseResponseInst.setValue(500, "Internal server error", null);
-      return res.status(500).json(baseResponseInst.buildResponse());
-    }
-  }
-  
+
 
     public async login(req: any, res: Response) {
-      const baseResponseInst = new BaseResponse();
-      const { email, password } = req.body;
+        const baseResponseInst = new BaseResponse();
+        const { email, password } = req.body;
 
-      if (!isValidString(email, 1, 100) || !isValidString(password, 1, 100)) {
-          baseResponseInst.setValue(400, "Invalid input ", null);
-          const responseData = baseResponseInst.buildResponse();
-          return res.status(400).json(responseData);
-      }
+        if (!isValidString(email, 1, 100) || !isValidString(password, 1, 100)) {
+            baseResponseInst.setValue(400, "Invalid input ", null);
+            const responseData = baseResponseInst.buildResponse();
+            return res.status(400).json(responseData);
+        }
 
-      const user = await User.findOne({ email });
-      if (!user) {
-          baseResponseInst.setValue(400, "User not found", null);
-          const responseData = baseResponseInst.buildResponse();
-          return res.status(400).json(responseData);
-      }
+        const user = await User.findOne({ email });
+        if (!user) {
+            baseResponseInst.setValue(400, "User not found", null);
+            const responseData = baseResponseInst.buildResponse();
+            return res.status(400).json(responseData);
+        }
 
-      const isPasswordMatch = await bcrypt.compare(password, user.password);
-      if (!isPasswordMatch) {
-          baseResponseInst.setValue(400, "Password is incorrect", null);
-          const responseData = baseResponseInst.buildResponse();
-          return res.status(400).json(responseData);
-      }
+        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        if (!isPasswordMatch) {
+            baseResponseInst.setValue(400, "Password is incorrect", null);
+            const responseData = baseResponseInst.buildResponse();
+            return res.status(400).json(responseData);
+        }
 
-      baseResponseInst.setValue(200, "Login successful", {
-          userId: user.userID,
-          username: user.username,
-          email: user.email
-      });
-      const responseData = baseResponseInst.buildResponse();
-      return res.status(200).json(responseData);
-  }
+        baseResponseInst.setValue(200, "Login successful", {
+            userId: user.userID,
+            username: user.username,
+            email: user.email
+        });
+        const responseData = baseResponseInst.buildResponse();
+        return res.status(200).json(responseData);
+    }
 
-  public async getAllUsers(req: Request, res: Response) {
-      const baseResponseInst = new BaseResponse();
+    public async getAllUsers(req: Request, res: Response) {
+        const baseResponseInst = new BaseResponse();
 
-      try {
+        try {
 
-          const users = await User.find({}, {
-              password: 0,
-              verificationToken: 0
-          });
+            const users = await User.find({}, {
+                password: 0,
+                verificationToken: 0
+            });
 
-          if (!users || users.length === 0) {
-              baseResponseInst.setValue(404, "No users found", []);
-              return res.status(404).json(baseResponseInst.buildResponse());
-          }
+            if (!users || users.length === 0) {
+                baseResponseInst.setValue(404, "No users found", []);
+                return res.status(404).json(baseResponseInst.buildResponse());
+            }
 
-          baseResponseInst.setValue(200, "successfully", users);
-          return res.status(200).json(baseResponseInst.buildResponse());
-      } catch (error) {
-          console.error("Error :", error);
-          baseResponseInst.setValue(500, "Internal Server Error", null);
-          return res.status(500).json(baseResponseInst.buildResponse());
-      }
-  }
+            baseResponseInst.setValue(200, "successfully", users);
+            return res.status(200).json(baseResponseInst.buildResponse());
+        } catch (error) {
+            console.error("Error :", error);
+            baseResponseInst.setValue(500, "Internal Server Error", null);
+            return res.status(500).json(baseResponseInst.buildResponse());
+        }
+    }
 
-  public async getUserById(req: Request, res: Response) {
-      const baseResponseInst = new BaseResponse();
-      const { userID } = req.body;
+    public async getUserById(req: Request, res: Response) {
+        const baseResponseInst = new BaseResponse();
+        const { userID } = req.body;
 
-      if (!userID) {
-          baseResponseInst.setValue(400, "User ID is required", null);
-          return res.status(400).json(baseResponseInst.buildResponse());
-      }
+        if (!userID) {
+            baseResponseInst.setValue(400, "User ID is required", null);
+            return res.status(400).json(baseResponseInst.buildResponse());
+        }
 
-      try {
-          const user = await User.findOne({ userID }, {
-              password: 0,
-              verificationToken: 0
-          });
+        try {
+            // no get password
+            const user = await User.findOne({ userID }, {
+                password: 0,
+            });
 
-          if (!user) {
-              baseResponseInst.setValue(404, "User not found", null);
-              return res.status(404).json(baseResponseInst.buildResponse());
-          }
+            if (!user) {
+                baseResponseInst.setValue(404, "User not found", null);
+                return res.status(404).json(baseResponseInst.buildResponse());
+            }
 
-          baseResponseInst.setValue(200, "success", user);
-          return res.status(200).json(baseResponseInst.buildResponse());
-      } catch (error) {
-          console.error("Error :", error);
-          baseResponseInst.setValue(500, "Internal Server Error", null);
-          return res.status(500).json(baseResponseInst.buildResponse());
-      }
-  }
+            baseResponseInst.setValue(200, "success", user);
+            return res.status(200).json(baseResponseInst.buildResponse());
+        } catch (error) {
+            console.error("Error :", error);
+            baseResponseInst.setValue(500, "Internal Server Error", null);
+            return res.status(500).json(baseResponseInst.buildResponse());
+        }
+    }
+
+    public async updateImage(req: Request, res: Response) {
+        const baseResponseInst = new BaseResponse();
+        const { userID } = req.body;
+
+        const files = req.files as {
+            [fieldname: string]: Express.Multer.File[];
+        };
+
+        const profileImage = files?.profileImage?.[0];
+        const backgroundImage = files?.backgroundImage?.[0];
+
+        try {
+            const user = await User.findOne({ userID });
+
+            if (!user) {
+                baseResponseInst.setValue(404, "User not found", null);
+                return res.status(404).json(baseResponseInst.buildResponse());
+            }
+
+            if (profileImage) user.profileImageURL = profileImage.path;
+            if (backgroundImage) user.backgroundImageURL = backgroundImage.path;
+
+            await user.save();
+
+            baseResponseInst.setValue(200, "Images updated successfully", user);
+            return res.status(200).json(baseResponseInst.buildResponse());
+        } catch (error) {
+            console.error("Image update error:", error);
+            baseResponseInst.setValue(500, "Internal Server Error", null);
+            return res.status(500).json(baseResponseInst.buildResponse());
+        }
+    }
 
 }
 
